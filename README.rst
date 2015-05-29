@@ -1,14 +1,14 @@
-Powerline font patcher
-======================
+Monospaced Font Patcher
+=======================
 
+Python script utilizing fontforge to add glyphs from a font file into any monospaced font.
+
+
+Credits
+-------
+:Author: Nick Glauber (nick@pncks.com)
+
+Based on Powerline-Fontpatcher
+------------------------------
+:Source: https://github.com/powerline/fontpatcher
 :Author: Kim Silkebækken (kim.silkebaekken+vim@gmail.com)
-:Source: https://github.com/Lokaltog/powerline-fontpatcher
-:Version: beta
-
-**Script to patch arrow and symbol glyphs into fonts for usage with 
-Powerline and other compatible plugins.**
-
-------
-
-Check out `powerline-fonts <https://github.com/Lokaltog/powerline-fonts>`_ 
-for pre-patched versions of popular, open source coding fonts.

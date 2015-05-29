@@ -15,16 +15,16 @@ except IOError:
 old_python = sys.version_info < (2, 7)
 
 setup(
-	name='Powerline font patcher',
-	version='beta',
-	description='Font patcher script for Powerline.',
+	name='Font Patcher',
+	version='0.0.1',
+	description='Font patcher script for monospaced fonts.',
 	long_description=README,
 	classifiers=[],
-	author='Kim Silkebaekken',
-	author_email='kim.silkebaekken+vim@gmail.com',
-	url='https://github.com/Lokaltog/powerline-fontpatcher',
+	author='Nick Glauber',
+	author_email='nick@pncks.com',
+	url='https://github.com/NickPancakes/fontpatcher',
 	scripts=[
-		'scripts/powerline-fontpatcher',
+		'scripts/fontpatcher',
 	],
 	keywords='',
 	packages=find_packages(exclude=('tests', 'tests.*')),
