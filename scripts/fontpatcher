@@ -7,15 +7,16 @@ import re
 import os.path
 
 try:
-	import fontforge
-	import psMat
+    import fontforge
+    import psMat
 except ImportError:
-	sys.stderr.write('The required FontForge modules could not be loaded.\n\n')
-	if sys.version_info.major > 2:
-		sys.stderr.write('FontForge only supports Python 2. Please run this script with the Python 2 executable - e.g. "python2 {0}"\n'.format(sys.argv[0]))
-	else:
-		sys.stderr.write('You need FontForge with Python bindings for this script to work.\n')
-	sys.exit(1)
+    sys.stderr.write('The required FontForge modules could not be loaded.\n\n')
+    if sys.version_info.major > 2:
+        sys.stderr.write('FontForge only supports Python 2. Please run this script with the Python 2 executable - e.g. "python2 {0}"\n'.format(sys.argv[0]))
+    else:
+        sys.stderr.write('You need FontForge with Python bindings for this script to work.\n')
+        sys.stderr.write('If running under Windows, use \"path\\to\\fontforge.exe -lang=py -script fontpatcher.py\"\n')
+    sys.exit(1)
 
 # Handle command-line arguments
 parser = argparse.ArgumentParser(description='Font patcher for Powerline. Requires FontForge with Python bindings. Stores the patched font as a new, renamed font file by default.')
@@ -26,90 +27,159 @@ args = parser.parse_args()
 
 
 class FontPatcher(object):
-	def __init__(self, source_font, target_fonts, rename_font=True):
-		self.source_font = fontforge.open(source_font.name)
-		self.target_fonts = (fontforge.open(target_font.name) for target_font in target_fonts)
-		self.rename_font = rename_font
+    def __init__(self, source_font, target_fonts, rename_font=True):
+        self.source_font = fontforge.open(source_font.name)
+        self.target_fonts = (fontforge.open(target_font.name) for target_font in target_fonts)
+        self.rename_font = rename_font
 
-	def patch(self):
-		for target_font in self.target_fonts:
-			source_font = self.source_font
-			target_font_em_original = target_font.em
-			target_font.em = 2048
-			target_font.encoding = 'ISO10646'
+    def patch(self):
+        for target_font in self.target_fonts:
+            source_font = self.source_font
+            target_font_em_original = target_font.em
+            source_font.encoding = 'ISO10646'
+            target_font.encoding = 'ISO10646'
 
-			# Rename font
-			if self.rename_font:
-				target_font.familyname += ' for Powerline'
-				target_font.fullname += ' for Powerline'
-				fontname, style = re.match("^([^-]*)(?:(-.*))?$", target_font.fontname).groups()
-				target_font.fontname = fontname + 'ForPowerline'
-				if style is not None:
-					target_font.fontname += style
-				target_font.appendSFNTName('English (US)', 'Preferred Family', target_font.familyname)
-				target_font.appendSFNTName('English (US)', 'Compatible Full', target_font.fullname)
+            # Rename font
+            if self.rename_font:
+                target_font.familyname += ' Modded'
+                target_font.fullname += ' Modded'
+                fontname, style = re.match("^([^-]*)(?:(-.*))?$", target_font.fontname).groups()
+                target_font.fontname = fontname + 'Modded'
+                if style is not None:
+                    target_font.fontname += style
+                target_font.appendSFNTName('English (US)', 'Preferred Family', target_font.familyname)
+                target_font.appendSFNTName('English (US)', 'Compatible Full', target_font.fullname)
 
-			source_bb = source_font['block'].boundingBox()
-			target_bb = [0, 0, 0, 0]
-			target_font_width = 0
+            # Find a bbox template from target font. 
+            target_desired_width = 0
+            target_bbox_tmpl = [0,0,0,0]
+            # Glayph 9608 (block) is usually great for this.
+            if 9608 in target_font:
+                target_bbox_tmpl = target_font[9608].boundingBox()
+                target_desired_width = target_font[9608].width
+            else:
+                # If block doesn't exist, find the largest glyph in the latin range
+                for cp in range(0x00, 0x17f) + range(0x2500, 0x2600):
+                    try:
+                        target_glyph = target_font[cp]
+                    except TypeError:
+                        continue
+                    if target_desired_width < target_glyph.width:
+                        target_desired_width = target_glyph.width
+                    target_bbox = target_glyph.boundingBox()
+                    glyph_height = target_bbox[3] - target_bbox[1]
+                    if glyph_height > target_desired_height:
+                        target_desired_height = glyph_height
+                    if target_bbox[0] < target_bbox_tmpl[0]:
+                        target_bbox_tmpl[0] = target_bbox[0]
+                    if target_bbox[1] > target_bbox_tmpl[1]:
+                        target_bbox_tmpl[1] = target_bbox[1]
+                    if target_bbox[2] < target_bbox_tmpl[2]:
+                        target_bbox_tmpl[2] = target_bbox[2]
+                    if target_bbox[3] > target_bbox_tmpl[3]:
+                        target_bbox_tmpl[3] = target_bbox[3]
 
-			# Find the biggest char width and height in the Latin-1 extended range and the box drawing range
-			# This isn't ideal, but it works fairly well - some fonts may need tuning after patching
-			for cp in range(0x00, 0x17f) + range(0x2500, 0x2600):
-				try:
-					bbox = target_font[cp].boundingBox()
-				except TypeError:
-					continue
-				if not target_font_width:
-					target_font_width = target_font[cp].width
-				if bbox[0] < target_bb[0]:
-					target_bb[0] = bbox[0]
-				if bbox[1] < target_bb[1]:
-					target_bb[1] = bbox[1]
-				if bbox[2] > target_bb[2]:
-					target_bb[2] = bbox[2]
-				if bbox[3] > target_bb[3]:
-					target_bb[3] = bbox[3]
+            # Do the same for the source font
+            source_bbox_tmpl = [0,0,0,0]
+            if 9608 in source_font:
+                source_bbox_tmpl = source_font[9608].boundingBox()
+                source_desired_width = source_font[9608].width
+            else:
+                for cp in range(0x00, 0x17f) + range(0x2500, 0x2600):
+                    try:
+                        source_glyph = source_font[cp]
+                    except TypeError:
+                        continue
+                    source_bbox = source_glyph.boundingBox()
+                    if source_bbox[0] < source_bbox_tmpl[0]:
+                        source_bbox_tmpl[0] = source_bbox[0]
+                    if source_bbox[1] < source_bbox_tmpl[1]:
+                        source_bbox_tmpl[1] = source_bbox[1]
+                    if source_bbox[2] > source_bbox_tmpl[2]:
+                        source_bbox_tmpl[2] = source_bbox[2]
+                    if source_bbox[3] > source_bbox_tmpl[3]:
+                        source_bbox_tmpl[3] = source_bbox[3]
 
-			# Find source and target size difference for scaling
-			x_ratio = (target_bb[2] - target_bb[0]) / (source_bb[2] - source_bb[0])
-			y_ratio = (target_bb[3] - target_bb[1]) / (source_bb[3] - source_bb[1])
-			scale = psMat.scale(x_ratio, y_ratio)
+            # Find source and target size difference for scaling
+            tmpls_x_ratio = (target_bbox_tmpl[2] - target_bbox_tmpl[0]) / (source_bbox_tmpl[2] - source_bbox_tmpl[0])
+            tmpls_y_ratio = (target_bbox_tmpl[3] - target_bbox_tmpl[1]) / (source_bbox_tmpl[3] - source_bbox_tmpl[1])
+            # we want to scale squarely, so use the largest of the two ratios
+            tmpls_bbox_scale = psMat.scale(max(tmpls_x_ratio, tmpls_y_ratio))
 
-			# Find source and target midpoints for translating
-			x_diff = target_bb[0] - source_bb[0]
-			y_diff = target_bb[1] - source_bb[1]
-			translate = psMat.translate(x_diff, y_diff)
-			transform = psMat.compose(scale, translate)
+            # Find source and target midpoints for translating
+            tmpls_x_diff = target_bbox_tmpl[0] - source_bbox_tmpl[0]
+            tmpls_y_diff = target_bbox_tmpl[1] - source_bbox_tmpl[1]
+            tmpls_bbox_translate = psMat.translate(tmpls_x_diff, tmpls_y_diff)
+            tmpls_bbox_transform = psMat.compose(tmpls_bbox_scale, tmpls_bbox_translate)
 
-			# Create new glyphs from symbol font
-			for source_glyph in source_font.glyphs():
-				if source_glyph == source_font['block']:
-					# Skip the symbol font block glyph
-					continue
+            # Add/Create new glyphs from symbol font
+            added_glyphs = 0
+            for source_glyph in source_font.glyphs():
 
-				# Select and copy symbol from its encoding point
-				source_font.selection.select(source_glyph.encoding)
-				source_font.copy()
+                # Skip glyph if it already exists
+                if source_glyph.glyphname in target_font:
+                    print("Glyphname %s exists. Skipping" % source_glyph.glyphname)
+                    continue
+                elif source_glyph.encoding in target_font:
+                    print("Glyph at encoding %s exists. Skipping" % source_glyph.encoding)
+                    continue
 
-				# Select and paste symbol to its unicode code point
-				target_font.selection.select(source_glyph.unicode)
-				target_font.paste()
+                # Skip if encoding is below 0
+                if source_glyph.encoding <= 0:
+                    continue
 
-				# Transform the glyph
-				target_font.transform(transform)
+                # Select and copy
+                source_font.selection.select(source_glyph.glyphname)
+                source_font.copy()
 
-				# Reset the font's glyph width so it's still considered monospaced
-				target_font[source_glyph.unicode].width = target_font_width
+                # Create the glyph in the target font if it does not exist
+                try:
+                    target_font.selection.select(source_glyph.unicode)
+                except ValueError:
+                    try:
+                        target_font.selection.select(source_glyph.glyphname)
+                    except ValueError:
+                        new_glyph = target_font.createChar(source_glyph.unicode, source_glyph.glyphname)
+                        target_font.selection.select(new_glyph)
 
-			target_font.em = target_font_em_original
+                # paste symbol
+                target_font.paste()
 
-			# Generate patched font
-			extension = os.path.splitext(target_font.path)[1]
-			if extension.lower() not in ['.ttf', '.otf']:
-				# Default to OpenType if input is not TrueType/OpenType
-				extension = '.otf'
-			target_font.generate('{0}{1}'.format(target_font.fullname, extension))
+                # Log our glyph
+                for glyph in target_font.selection.byGlyphs:
+                    curr_glyph = glyph
+                    print("Added glyph %s at unicode position %s" % (curr_glyph.glyphname, hex(curr_glyph.unicode)))
+                    added_glyphs += 1
+
+                # Save some importnt info before scaling
+                orig_bbox = curr_glyph.boundingBox()
+                orig_lsb = curr_glyph.left_side_bearing
+                orig_rsb = curr_glyph.right_side_bearing
+                total_width = (orig_bbox[2] - orig_bbox[0]) + orig_lsb + orig_rsb
+                if total_width > 0:
+                    curr_glyph.transform(tmpls_bbox_transform)
+
+                    new_bbox = curr_glyph.boundingBox()
+                    new_lsb = curr_glyph.left_side_bearing
+                    new_rsb = curr_glyph.right_side_bearing
+                    new_width = (new_bbox[2] - new_bbox[0]) + new_lsb + new_rsb
+                    if new_width > target_desired_width:
+                        width_ratio = target_desired_width / new_width
+                        width_scale = psMat.scale(width_ratio)
+                        curr_glyph.transform(width_scale)
+
+                # Reset the font's glyph width so it's still considered monospaced
+                curr_glyph.width = target_desired_width
+
+            print("Total Glyphs added: %d" % added_glyphs)
+            target_font.em = target_font_em_original
+
+            # Generate patched font
+            extension = os.path.splitext(target_font.path)[1]
+            if extension.lower() not in ['.ttf', '.otf']:
+                # Default to OpenType if input is not TrueType/OpenType
+                extension = '.otf'
+            target_font.generate('{0}{1}'.format(target_font.fullname, extension))
 
 fp = FontPatcher(args.source_font, args.target_fonts, args.rename_font)
 fp.patch()
