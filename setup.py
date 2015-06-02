@@ -8,7 +8,7 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 try:
-	README = open(os.path.join(here, 'README.rst'), 'rb').read().decode('utf-8')
+	README = open(os.path.join(here, 'README.md'), 'rb').read().decode('utf-8')
 except IOError:
 	README = ''
 
