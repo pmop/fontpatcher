@@ -5,6 +5,7 @@ import argparse
 import sys
 import re
 import os.path
+from itertools import chain
 
 try:
     import fontforge
@@ -59,7 +60,7 @@ class FontPatcher(object):
                 target_desired_width = target_font[9608].width
             else:
                 # If block doesn't exist, find the largest glyph in the latin range
-                for cp in range(0x00, 0x17f) + range(0x2500, 0x2600):
+                for cp in chain(range(0x00, 0x17f), range(0x2500, 0x2600)):
                     try:
                         target_glyph = target_font[cp]
                     except TypeError:
@@ -68,8 +69,7 @@ class FontPatcher(object):
                         target_desired_width = target_glyph.width
                     target_bbox = target_glyph.boundingBox()
                     glyph_height = target_bbox[3] - target_bbox[1]
-                    if glyph_height > target_desired_height:
-                        target_desired_height = glyph_height
+                    target_desired_height = glyph_height
                     if target_bbox[0] < target_bbox_tmpl[0]:
                         target_bbox_tmpl[0] = target_bbox[0]
                     if target_bbox[1] > target_bbox_tmpl[1]:
